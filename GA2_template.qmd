@@ -1,0 +1,164 @@
+---
+title: "ETF5231 Group Assignment 2"
+subtitle: 'Group Number and Name (see Question 8 for your group name)'
+author:
+  - Student Name (ID)
+  - Student Name (ID)
+  - Student Name (ID)
+  - Student Name (ID)
+format:
+  pdf
+---
+
+```{r}
+library(tidyverse)
+library(fpp3)
+library(here)
+```
+
+
+## Question 1
+
+*What is your data about (no more than 50 words for each series)? Produce appropriate plots in order to become familiar with your data. Make sure you label your axes and plots appropriately. Comment on these. What do you see? (no more than 50 words per plot). (14 marks)*
+
+```{r}
+#Read and isolate Group 13 metadata
+meta <- read_csv(here("data/GA_Data.csv"), col_names = TRUE, n_max = 3)
+
+meta %>% select("Group 13")
+
+dat <- read_csv(here("data/GA_Data.csv"), 
+                col_names = colnames(meta),
+                skip = 4)
+
+ga <- dat %>% 
+  rename(Month = "Student ID", Sales_in_million ="Group 13") %>%
+  select(Month, Sales_in_million ) %>% 
+  mutate(Month=yearmonth(Month)) %>% 
+  as_tsibble(index = Month)
+
+bind_rows(head(ga,5),tail(ga,1))
+
+#Identify minimum and maximum observations
+bind_rows(slice_min(ga, Sales_in_million), slice_max(ga, Sales_in_million))
+
+ga %>% autoplot()+
+  labs(x = "Monthly Observations", y = "Sales (millions)")
+
+ga %>% ACF(Sales_in_million, lag_max = 48) %>% autoplot()
+
+ga %>% gg_season(Sales_in_million)
+
+ga %>% gg_subseries(Sales_in_million)
+
+
+```
+This data is about Monthly Sales Turnover in South Australia, specifically in the Clothing Retail sector, it is measured in AUD millions. The observed periods range from April 1982 until November 2022, and the values range 14.3 to 113.7 in the millions. (42 Words)
+
+The data shows an overall positive trend with strong seasonal patterns, it also has a massive drop near the start of 2020, likely due to Covid-19. (26 Words)
+
+The ACF plot for the data confirms the seasonality with a repeating peak every 12th entry, suggesting monthly seasonality. The correlation is also falling at a slow but steady rate which corresponds well with the overall positive trend seen in the previous plot. (43 Words)
+
+Using gg_seasons we are able to confirm that the drop in 2020 occurred in April, this is also in line with the first lockdown in South Australia. We are also able to confirm the natural seasonal peak is in December each year. (42 Words)
+
+With gg_subseries we see that around the year 2020 every observation after April shared a significant drop, however the comparative drop in April is significantly stronger than the drop seen in following months. (33 Words)
+
+\newpage
+## Question 2
+
+*Would transforming your data be useful (no more than 50 words)? Choose a transformation and justify your choice (no more than 50 words). (5 marks)*
+
+```{r}
+lambda <- ga %>% features(Sales_in_million, features = guerrero) %>% pull(lambda_guerrero)
+
+ga %>% autoplot(log(Sales_in_million))+
+  geom_line(aes(y = box_cox(Sales_in_million ,lambda), color = "Box-Cox Transform")) +
+  geom_line(aes(y = log(Sales_in_million), color = "Log Transform"))+
+  labs(x = "Observations by Month",
+       y = "Transformed Sales",
+       colour = "Transformations",
+       title = "Comparison of Box-Cox and Log Transformations of Y")
+
+
+
+```
+As the data has multiple changes in trend direction as well as a multiplicative seasonal pattern, it should be beneficial to perform a transformation on the data. (27 Words)
+
+With a lambda of -0.1685 we are able to see a significant adjustment in the shape of the data, with the exception of the April 2020 downward spike we can see a much more consistent seasonal variance and the trend has weakened directional changes. (44 Words)
+
+\newpage
+## Question 3
+
+*Split your data into training and test sets. Leave the last two years’ worth of observations as the test set. Apply all four benchmark methods on the training set. Generate forecasts for the test set and plot them on the same graph. Compare their forecasting performance on the test set. Which method would you choose as an appropriate benchmark? Justify your answer (no more than 100 words). (Hint: it will be useful to tabulate your results.) (6 marks)*
+
+```{r}
+training <- ga %>% head(488-24)
+
+test <- ga %>%  tail(24)
+
+bind_rows(tail(training,1), head(test,1))
+
+train_fit <- training %>% model(MEAN(box_cox(Sales_in_million, lambda)),
+                                NAIVE(box_cox(Sales_in_million, lambda)),
+                                SNAIVE(box_cox(Sales_in_million, lambda)),
+                                RW(box_cox(Sales_in_million, lambda), ~ drift()))
+
+sales_fc <- train_fit %>% forecast(h = "2 year")
+
+sales_fc %>% autoplot(test)
+
+trim_fit <- training %>% model(SNAIVE(box_cox(Sales_in_million, lambda)),
+                               RW(box_cox(Sales_in_million, lambda), ~ drift()))
+
+trim_fc <- trim_fit %>% forecast(h = "2 year")
+
+trim_fc %>% autoplot(test)
+
+trim_fc %>% accuracy(ga)
+```
+Visually we are able to eliminate the NAIVE method for have extremely wide intervals, we can also remove the MEAN method as it practically misses all the observed values from the test data. Replotting the RW with drift and SNAIVE models, we can determine that the RW with drift model has the same issue as the NAIVE model, in that the confidence intervals are too wide to be an effective forecasting model. The accuracy function disagrees with this assessment however accuracy does not take confidence intervals into account when identifying the best model. (93 Words)
+
+\newpage
+## Question 4
+
+*Can you construct better forecasting method(s) for your data? Give a brief description of these. Evaluate the method(s) over the test set and compare them to the benchmarks  (no more than 50 words each). This question requires you to think about and only use tools you have acquired so far in this unit. Only materials from up to and including Chapter 5 (not Chapter 8) can be used. (Notice that more weight is now placed on this part of the assignment) (14 marks)*
+
+```{r}
+
+```
+
+\newpage
+## Question 5
+
+*Use time series cross-validation to select the best of the methods you have so far considered (you may only consider the most appropriate of the four benchmarks). Tabulate your results. How do these compare with the test set? Comment on the advantages and/or disadvantages of using this method (no more than 100 words). (10 marks)*
+
+```{r}
+
+```
+
+\newpage
+## Question 6
+
+*For the best method, do a residual analysis. Comment on these (no more than 150 words). (4 marks)*
+
+```{r}
+
+```
+
+\newpage
+## Question 7
+
+*Generate point forecasts for the next 2 years (future) from the method you have classified as best and plot them. Compare these visually and comment on the point and prediction intervals (no more than 100 words). (6 marks)*
+
+```{r}
+
+```
+
+\newpage
+## Question 8
+
+*Suppose that your group was a forecasting consulting group and you were working for a client. Give your group a name (add that to the subtitle above). Report your work here summarising and critically (think about assumption, limitations, extensions) evaluating the forecasts you are generating (no more than 200 words). (5 marks)*
+
+```{r}
+
+```
